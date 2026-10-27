@@ -1,0 +1,42 @@
+# ============================================================
+#  wx_export —— 绝不入库的东西（密钥 / 明文聊天 / 导出成品）
+# ============================================================
+
+# ---- 密钥与解密数据：等同钥匙与明文聊天记录 ----
+all_keys.json
+keys_hex.json
+key_candidates.json
+decrypted/
+mem/
+
+# ---- 导出成品与按月切分片段 ----
+out/
+out_*/
+segments/
+
+# ---- 内存扫描命中（含明文片段）----
+wx_hits*.jsonl
+full_scan.txt
+
+# ---- 分析结果文本（私人内容，只留在 ../wx_export_local/）----
+/*.txt
+!requirements.txt
+
+# ---- 构建产物 ----
+build/
+dist/
+__pycache__/
+*.py[cod]
+*.spec.bak
+*.exe
+*.log
+gui/_selftest_out/
+
+# ---- 第三方源码包（pip download 可再取）----
+pkg/
+
+# ---- 调试截图：只保留界面资源 ----
+/*.png
+/gui/*.png
+!gui/preview_dark.png
+!gui/assets/*.png
