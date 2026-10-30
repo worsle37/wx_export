@@ -6,7 +6,7 @@
 ![界面预览](gui/preview_dark.png)
 
 **不想看代码、只想用？** 直接去 [Releases](https://github.com/worsle37/wx_export/releases) 下载
-`微信聊天导出.exe`（约 14 MB，免安装），然后照 **[使用教程](docs/使用教程.md)** 点四下就出结果。
+`WeChatExport.exe`（约 14 MB，免安装；可改名），然后照 **[使用教程](docs/使用教程.md)** 点四下就出结果。
 
 - 使用教程（截图 + 四步上手 + FAQ）：[`docs/使用教程.md`](docs/使用教程.md)
 - 界面与开发说明：[`gui/README.md`](gui/README.md)
@@ -26,7 +26,7 @@
 ## 快速开始
 
 1. 登录微信桌面端并保持运行
-2. 运行从 [Releases](https://github.com/worsle37/wx_export/releases) 下载的 `微信聊天导出.exe`
+2. 运行从 [Releases](https://github.com/worsle37/wx_export/releases) 下载的 `WeChatExport.exe`
    （建议右键「以管理员身份运行」；源码跑法是 `python gui/app.py`）
 3. 点右上角 **① 读取密钥并解密**（首次 1–3 分钟）
 4. 选中会话 → 勾格式 → **② 导出选中**（默认输出到 `桌面\微信导出`）
@@ -36,8 +36,8 @@
 命令行批量导出：
 
 ```powershell
-.\微信聊天导出.exe --cli --all --out D:\导出
-.\微信聊天导出.exe --cli --name "好友A" --out D:\导出
+.\WeChatExport.exe --cli --all --out D:\导出
+.\WeChatExport.exe --cli --name "好友A" --out D:\导出
 ```
 
 ## 目录
