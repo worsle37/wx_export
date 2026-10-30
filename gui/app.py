@@ -628,11 +628,21 @@ class ConvList(object):
         self._bg = bg or C.CARD
         self.frame = tk.Frame(master, bg=self._bg)
         self.cv = tk.Canvas(self.frame, bg=self._bg, highlightthickness=0, bd=0)
-        self.sb = SlimScroll(self.frame, bg=self._bg, width=6, target=self.cv)
+        self.sb = SlimScroll(self.frame, bg=self._bg, width=6)
         self.cv.pack(side="left", fill="both", expand=True)
         self.sb.canvas.pack(side="right", fill="y", padx=(px(6), 0))
+        self.sb.target = self.cv
         self.rowh = px(self.ROW)
-        self.cv.configure(yscrollincrement=max(1, self.rowh // 4))
+        # 一个「单位」= 一整行：滚轮一格滚 3 行；滚动事件同时驱动重绘
+        self.cv.configure(yscrollincrement=self.rowh)
+        self.cv.configure(yscrollcommand=self._on_yscroll)
+        self._redraw_job = None
+        self._in_draw = False
+        self._view_key = None
+        self._drag_from = None
+        self._drag_to = None
+        self._drag_ctrl = False
+        self._drag_base = set()
         self.items = []
         self.view = []
         self.sel = set()
@@ -648,6 +658,8 @@ class ConvList(object):
         self.cv.bind("<Configure>", lambda e: self._draw())
         self.cv.bind("<MouseWheel>", self._wheel)
         self.cv.bind("<Button-1>", self._click)
+        self.cv.bind("<B1-Motion>", self._drag)
+        self.cv.bind("<ButtonRelease-1>", self._release_drag)
         self.cv.bind("<Double-Button-1>", self._dbl)
         self.cv.bind("<Button-1>", lambda e: self.cv.focus_set(), add="+")
         self.cv.bind("<Motion>", self._motion)
@@ -705,6 +717,10 @@ class ConvList(object):
             return
         ctrl = bool(e.state & 0x0004)
         shift = bool(e.state & 0x0001)
+        self._drag_base = set(self.sel)
+        self._drag_ctrl = ctrl
+        self._drag_from = i
+        self._drag_to = i
         if ctrl:
             self.sel.symmetric_difference_update({i})
             self.anchor = i
@@ -717,6 +733,27 @@ class ConvList(object):
         self._draw()
         if self.on_select:
             self.on_select()
+
+    def _drag(self, e):
+        """按住左键上下拖 = 框选一段（Ctrl 拖 = 叠加到已有选择）。"""
+        if self._drag_from is None:
+            return
+        i = self._idx_at(e.y)
+        if i is None or i == self._drag_to:
+            return
+        self._drag_to = i
+        lo, hi = sorted((self._drag_from, i))
+        new = set(range(lo, hi + 1))
+        if self._drag_ctrl:
+            new |= self._drag_base
+        self.sel = new
+        self._draw()
+        if self.on_select:
+            self.on_select()
+
+    def _release_drag(self, _e=None):
+        self._drag_from = None
+        self._drag_to = None
 
     def _dbl(self, e):
         i = self._idx_at(e.y)
@@ -733,7 +770,31 @@ class ConvList(object):
         return "break"
 
     def _wheel(self, e):
-        self.cv.yview_scroll(-1 if e.delta > 0 else 1, "units")
+        """滚轮：一格 = 3 行；高精度触摸板按 120 的整数倍折算，最小 1 行。"""
+        d = int(getattr(e, "delta", 0) or 0)
+        if abs(d) >= 120:
+            n = int(d / 120)
+        else:
+            n = 1 if d > 0 else -1
+        self.cv.yview_scroll(-3 * n, "units")
+        return "break"
+
+    # -- 滚动联动：滚轮/拖滚动条/跳转后补画新露出来的行 -----------------
+    def _on_yscroll(self, first, last):
+        self.sb.set_view(first, last)
+        key = (round(float(first), 6), round(float(last), 6))
+        if key == self._view_key or self._in_draw:
+            return
+        self._view_key = key
+        self._schedule_redraw()
+
+    def _schedule_redraw(self):
+        if self._redraw_job is None:
+            self._redraw_job = self.cv.after_idle(self._do_redraw)
+
+    def _do_redraw(self):
+        self._redraw_job = None
+        self._draw()
 
     def _motion(self, e):
         i = self._idx_at(e.y)
@@ -750,20 +811,24 @@ class ConvList(object):
     # -- 绘制 ---------------------------------------------------------
     def _draw(self):
         cv = self.cv
-        cv.delete("all")
-        n = len(self.view)
-        w = cv.winfo_width() or 1
-        h = cv.winfo_height() or 1
-        if n == 0:
-            cv.configure(scrollregion=(0, 0, w, h))
-            self._draw_empty(w, h)
-            return
-        cv.configure(scrollregion=(0, 0, w, n * self.rowh))
-        top = cv.canvasy(0)
-        i0 = max(0, int(top // self.rowh) - 1)
-        i1 = min(n, int((top + h) // self.rowh) + 2)
-        for i in range(i0, i1):
-            self._draw_row(i, w)
+        self._in_draw = True
+        try:
+            cv.delete("all")
+            n = len(self.view)
+            w = cv.winfo_width() or 1
+            h = cv.winfo_height() or 1
+            if n == 0:
+                cv.configure(scrollregion=(0, 0, w, h))
+                self._draw_empty(w, h)
+                return
+            cv.configure(scrollregion=(0, 0, w, n * self.rowh))
+            top = cv.canvasy(0)
+            i0 = max(0, int(top // self.rowh) - 1)
+            i1 = min(n, int((top + h) // self.rowh) + 2)
+            for i in range(i0, i1):
+                self._draw_row(i, w)
+        finally:
+            self._in_draw = False
 
     def _draw_empty(self, w, h):
         """空白态 = 上手引导（列表还没有数据时才出现）。"""
@@ -774,7 +839,7 @@ class ConvList(object):
                        font=F(11, True))
         cv.create_text(cx, top + px(24), text="按下面三步走：", fill=C.TXT3, font=F(9))
         steps = (("①", "登录微信桌面端，点右上角「读取密钥并解密」"),
-                 ("②", "在列表里选会话（Ctrl / Shift 多选，双击直出）"),
+                 ("②", "在列表里选会话（可拖动框选、Ctrl / Shift 多选，双击直出）"),
                  ("③", "选好格式后点「导出选中」，完成后自动打开目录"))
         for i, (num, txt) in enumerate(steps):
             y = top + px(56) + i * px(26)
